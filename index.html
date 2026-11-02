@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Folio</title>
+  <meta name="description" content="Abre y edita Word, Excel y PowerPoint sin conexión, sin deformar tus archivos.">
+  <meta name="theme-color" content="#e6ebf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1f27" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main id="home">
+    <div class="home-in">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+          <rect x="9" y="4" width="24" height="31" rx="2" fill="#c9d1dc"/>
+          <rect x="5" y="7" width="24" height="31" rx="2" fill="#fff" stroke="#2e3a4a" stroke-width="1.5"/>
+          <rect x="9" y="13" width="12" height="3" rx="1" fill="#3a4db8"/>
+          <rect x="9" y="20" width="16" height="2" rx="1" fill="#1f7a5a"/>
+          <rect x="9" y="25" width="10" height="2" rx="1" fill="#c0601c"/>
+        </svg>
+        <div class="grow">
+          <h1>Folio</h1>
+          <p>Word, Excel y PowerPoint en tu tablet y tu PC, sin conexión</p>
+        </div>
+        <button class="btn primary" id="openBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          Abrir archivo
+        </button>
+      </div>
+
+      <h2 class="sec">Crear nuevo</h2>
+      <div class="new-row">
+        <button class="sheet-tile" data-new="word">
+          <div class="paper doc"><b></b><s></s><s></s><s></s><s></s><s></s><s></s><s></s><s></s></div>
+          <span class="lbl"><i style="background:var(--doc)"></i>Documento</span>
+          <span class="sub">Se guarda como .docx</span>
+        </button>
+        <button class="sheet-tile" data-new="excel">
+          <div class="paper xls"></div>
+          <span class="lbl"><i style="background:var(--sheet)"></i>Planilla</span>
+          <span class="sub">Se guarda como .xlsx</span>
+        </button>
+        <button class="sheet-tile" data-new="ppt">
+          <div class="paper ppt"><div class="slide"></div></div>
+          <span class="lbl"><i style="background:var(--deck)"></i>Presentación</span>
+          <span class="sub">Se guarda como .pptx</span>
+        </button>
+      </div>
+
+      <h2 class="sec">Recientes</h2>
+      <ul class="recent" id="recent"></ul>
+      <p class="empty-note hidden" id="recentEmpty">Los archivos que abras quedarán aquí para volver a ellos sin conexión.</p>
+
+      <div class="drop" id="drop">También puedes arrastrar un .docx, .xlsx o .pptx aquí</div>
+
+      <p class="foot">Folio edita el texto y los valores dentro de tu archivo original, sin reconstruirlo, así el diseño, las imágenes y los estilos se mantienen como en Office. Todo se procesa en este dispositivo; tus archivos no se suben a ningún lado.</p>
+    </div>
+  </main>
+
+  <section id="editor" class="hidden">
+    <div class="topbar">
+      <button class="icon-btn" id="backBtn" title="Inicio" aria-label="Volver al inicio">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="fname"><strong id="fname">Documento</strong><span id="fstate">Sin cambios</span></div>
+      <div class="tb-group tb-zoom">
+        <button class="icon-btn" id="zoomOut" title="Alejar" aria-label="Alejar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-4.3-4.3"/></svg></button>
+        <button class="icon-btn" id="zoomIn" title="Acercar" aria-label="Acercar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M11 8v6M21 21l-4.3-4.3"/></svg></button>
+      </div>
+      <button class="icon-btn hidden" id="presentBtn" title="Presentar" aria-label="Presentar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M8 5l11 7-11 7z"/></svg></button>
+      <span class="sep"></span>
+      <button class="btn primary" id="save">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
+        <span class="lbl-long">Guardar</span><span class="lbl-short">Guardar</span>
+      </button>
+      <button class="icon-btn" id="moreBtn" title="Más opciones" aria-label="Más opciones" aria-haspopup="true"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
+      <div class="menu hidden" id="menu" role="menu">
+        <button id="saveCopy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>Guardar una copia</button>
+        <button id="shareBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Compartir</button>
+        <hr>
+        <button id="localeBtn" class="hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg><span id="localeLbl">Números: 1.234,56</span></button>
+        <div class="hint" id="menuHint"></div>
+      </div>
+    </div>
+    <div class="ribbon" id="ribbon" role="toolbar" aria-label="Formato e inserción"></div>
+    <div id="view"></div>
+  </section>
+
+  <input type="file" id="fileInput" accept=".docx,.xlsx,.pptx,.xlsm,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script src="vendor/docx-preview.min.js"></script>
+  <script src="vendor/ssf.js"></script>
+  <script src="vendor/hyperformula.full.min.js" defer></script>
+  <script src="js/core.js"></script>
+  <script src="js/word.js"></script>
+  <script src="js/excel.js"></script>
+  <script src="js/ppt.js"></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
