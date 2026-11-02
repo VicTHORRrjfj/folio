@@ -28,12 +28,16 @@ La app necesita publicarse en una dirección `https://` una sola vez; después f
 - **PowerPoint:** toca un cuadro de texto para editarlo y usa la barra para dar formato. *Diapositiva* crea una nueva (con el mismo diseño de la actual), duplica, mueve o elimina. *Imagen* agrega una imagen a la diapositiva actual; arrástrala para moverla y usa el círculo de la esquina para cambiar su tamaño. ▶ inicia la presentación.
 - **Guardar:** en la tablet guarda en *Descargas*; en el PC sobrescribe el archivo. *Compartir* (menú ⋮) lo envía por WhatsApp, Drive, correo, etc.
 - Los últimos 20 archivos quedan en *Recientes*, disponibles sin conexión.
+- **Compartir a Folio (tablet):** con la app instalada, desde WhatsApp, Drive, Gmail o *Mis archivos* toca *Compartir* → **Folio** y el documento se abre directo.
+- **Copiar y pegar con formato:** al pegar texto copiado de Word o PowerPoint se mantienen negrita, cursiva, subrayado, color, tamaño, fuente y alineación. Al pegar celdas copiadas de Excel o Google Sheets se mantienen valores, formato de número (moneda, %, fecha), negrita, colores, relleno y alineación. Si copias y pegas dentro de Folio, las fórmulas se ajustan a su nueva posición. En el PC también puedes copiar un archivo en el explorador y pegarlo (Ctrl+V) en la pantalla de inicio para abrirlo.
+- **Atajos (PC):** Ctrl+N o Ctrl+B negrita, Ctrl+K o Ctrl+I cursiva, Ctrl+U subrayado, Ctrl+S guardar.
 
 ## Límites de esta versión
 
 - Word: encabezados, pies y cuadros de texto son de solo lectura. Las páginas se cortan solo en saltos de página manuales. Las imágenes se insertan en línea (no flotantes).
 - Excel: los gráficos se muestran como un recuadro (se conservan). No se pueden insertar columnas dentro de una tabla con formato de Excel. Deshacer (Ctrl+Z) cubre los valores escritos, no los cambios de formato o de filas.
 - PowerPoint: gráficos y SmartArt se muestran como un recuadro (se conservan); las animaciones no se reproducen. Solo las imágenes se mueven con el dedo; las demás formas mantienen su posición.
+- Al pegar en Word o PowerPoint se pega el texto con su formato; las imágenes y tablas copiadas se pegan como texto (usa *Imagen* y *Tabla* para eso).
 - Formatos antiguos `.doc/.xls/.ppt` no se abren: guárdalos antes como `.docx/.xlsx/.pptx`.
 
 ## Licencias de las librerías incluidas

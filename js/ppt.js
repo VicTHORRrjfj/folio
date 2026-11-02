@@ -670,7 +670,7 @@
         tx.setAttribute('contenteditable', 'true');
         tx.setAttribute('spellcheck', 'true');
         tx.setAttribute('lang', 'es');
-        OF.plainPaste(tx);
+        OF.plainPaste(tx, this);
         tx.addEventListener('input', () => { this.markDirty(); if (tx.textContent.trim()) tx.classList.remove('pp-empty'); });
       });
     }
@@ -827,13 +827,11 @@
     if ('sz' in f) rPr.setAttribute('sz', Math.round(f.sz * 100));
     if ('color' in f) {
       OF.removeKids(rPr, ['noFill', 'solidFill', 'gradFill', 'blipFill', 'pattFill', 'grpFill'], A);
-      if (f.color) {
-        const sf = OF.fragment(doc, `<a:solidFill xmlns:a="${A}"><a:srgbClr val="${f.color.replace('#', '').toUpperCase()}"/></a:solidFill>`);
-        const ln = OF.kid(rPr, 'ln', A);
-        rPr.insertBefore(sf, ln ? ln.nextSibling : rPr.firstChild);
-      }
+      if (f.color) OF.ordered(rPr, A, 'a', 'solidFill', PRPR).appendChild(OF.fragment(doc, `<a:srgbClr xmlns:a="${A}" val="${f.color.replace('#', '').toUpperCase()}"/>`));
     }
+    if (f.font) { const l = OF.ordered(rPr, A, 'a', 'latin', PRPR); l.setAttribute('typeface', f.font); OF.removeKids(rPr, ['cs'], A); }
   }
+  const PRPR = ['ln', 'noFill', 'solidFill', 'gradFill', 'blipFill', 'pattFill', 'grpFill', 'effectLst', 'effectDag', 'highlight', 'uLnTx', 'uLn', 'uFillTx', 'uFill', 'latin', 'ea', 'cs', 'sym', 'hlinkClick', 'hlinkMouseOver', 'rtl', 'extLst'];
   function pptParaFmt(p, f) {
     let pPr = OF.kid(p, 'pPr', A);
     if (!pPr) { pPr = p.ownerDocument.createElementNS(A, 'a:pPr'); p.insertBefore(pPr, p.firstChild); }

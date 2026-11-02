@@ -383,6 +383,31 @@
     return origOpen.apply(this, a);
   };
 
+  // Archivo recibido con "Compartir → Folio"
+  async function openShared() {
+    if (!/[?&]compartido=1/.test(location.search) || !('caches' in window)) return;
+    history.replaceState(null, '', location.pathname);
+    try {
+      const cache = await caches.open('folio-compartido');
+      const res = await cache.match('compartido');
+      if (!res) return toast('No llegó ningún archivo. Comparte un .docx, .xlsx o .pptx.');
+      const name = decodeURIComponent(res.headers.get('x-nombre') || 'archivo');
+      const buf = await res.arrayBuffer();
+      await cache.delete('compartido');
+      openBuffer(buf, name);
+    } catch (e) { toast('No se pudo abrir el archivo compartido.'); }
+  }
+  openShared();
+
+  // PC: pegar un archivo copiado (Ctrl+V) en la pantalla de inicio
+  document.addEventListener('paste', async (e) => {
+    if ($('home').classList.contains('hidden')) return;
+    const f = e.clipboardData && e.clipboardData.files && e.clipboardData.files[0];
+    if (!f) return;
+    e.preventDefault();
+    openBuffer(await f.arrayBuffer(), f.name);
+  });
+
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Sin modo offline:', e));
   }

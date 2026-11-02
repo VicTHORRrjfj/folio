@@ -168,7 +168,7 @@
         a.setAttribute('contenteditable', 'true');
         a.setAttribute('spellcheck', 'true');
         a.setAttribute('lang', 'es');
-        OF.plainPaste(a);
+        OF.plainPaste(a, this);
         a.addEventListener('input', () => this.markDirty());
       });
       OF.closeImageBar();
@@ -233,6 +233,11 @@
     if ('color' in f) set('color', f.color ? f.color.replace('#', '').toUpperCase() : 'auto');
     if ('sz' in f) { set('sz', String(Math.round(f.sz * 2))); set('szCs', String(Math.round(f.sz * 2))); }
     if ('hl' in f) { if (f.hl) set('highlight', f.hl); else OF.removeKids(rPr, ['highlight'], W); }
+    if (f.font) {
+      const e = OF.ordered(rPr, W, 'w', 'rFonts', RPR);
+      for (const a of Array.from(e.attributes)) e.removeAttributeNode(a);
+      for (const a of ['ascii', 'hAnsi', 'cs', 'eastAsia']) e.setAttributeNS(W, 'w:' + a, f.font);
+    }
   }
   function applyParaFmt(p, f) {
     const pPr = firstKid(p, 'pPr');

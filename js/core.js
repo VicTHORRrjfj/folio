@@ -596,16 +596,164 @@
   };
 
   // Pegar siempre como texto plano (evita meter formato ajeno al documento)
-  OF.plainPaste = function (root) {
+  /* --------------------------- pegar con formato --------------------------- */
+  const toHex = (c) => {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(c || '');
+    if (!m || (m[4] != null && +m[4] === 0)) return null;
+    return '#' + [m[1], m[2], m[3]].map((x) => (+x).toString(16).padStart(2, '0')).join('').toUpperCase();
+  };
+  OF.toHex = toHex;
+  // Carga HTML del portapapeles en un marco aislado (sin scripts) para leer los estilos calculados
+  OF.withHtml = function (html, fn) {
+    const ifr = document.createElement('iframe');
+    ifr.setAttribute('sandbox', 'allow-same-origin');
+    ifr.style.cssText = 'position:fixed;left:-10000px;top:0;width:900px;height:700px;visibility:hidden;border:0';
+    document.body.append(ifr);
+    try {
+      const d = ifr.contentDocument;
+      d.open();
+      // valores centinela: si el contenido copiado no define fuente/tamaño/color, no se inventan
+      d.write('<style>html{font-family:__ninguna__;font-size:13.37px;color:rgb(1,2,3)}</style>' + html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<img\b[^>]*>/gi, '').replace(/<link\b[^>]*>/gi, ''));
+      d.close();
+      return fn(d, ifr.contentWindow);
+    } finally { ifr.remove(); }
+  };
+  const fmtOf = (el, win, body) => {
+    const cs = win.getComputedStyle(el);
+    let u = false;
+    for (let a = el; a && a !== body; a = a.parentElement) if (/underline/.test(win.getComputedStyle(a).textDecorationLine)) { u = true; break; }
+    const f = { b: +cs.fontWeight >= 600 || cs.fontWeight === 'bold', i: cs.fontStyle === 'italic', u };
+    const col = toHex(cs.color); if (col && col !== '#010203') f.color = col;
+    const px = parseFloat(cs.fontSize); if (px && Math.abs(px - 13.37) > 0.01) f.sz = Math.round(px * 0.75 * 2) / 2;
+    const fam = (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim();
+    if (fam && fam !== '__ninguna__' && !/^(serif|sans-serif|monospace|system-ui|cursive|fantasy|-webkit)/i.test(fam)) f.font = fam;
+    return f;
+  };
+  // HTML -> [{align, runs:[{text, fmt}]}]
+  OF.htmlToParas = function (html) {
+    return OF.withHtml(html, (d, win) => {
+      const paras = [];
+      let cur = null;
+      const BLOCK = /^(P|DIV|H[1-6]|LI|TR|TABLE|TBODY|THEAD|UL|OL|BLOCKQUOTE|PRE|SECTION|ARTICLE|CENTER|DL|DT|DD)$/;
+      const alignOf = (el) => { const ta = el && el !== d.body ? win.getComputedStyle(el).textAlign : ''; return /center/.test(ta) ? 'center' : /right|end/.test(ta) ? 'right' : /justify/.test(ta) ? 'justify' : /left|start/.test(ta) ? 'left' : null; };
+      const open = (el) => { cur = { runs: [], align: alignOf(el) }; paras.push(cur); };
+      const walk = (node, block) => {
+        for (let c = node.firstChild; c; c = c.nextSibling) {
+          if (c.nodeType === 3) {
+            let t = c.nodeValue.replace(/[\r\n]+/g, ' ').replace(/[ \t]+/g, ' ').replace(/ /g, ' ');
+            if (!t.trim() && (!cur || !cur.runs.length)) continue;
+            if (!cur) open(block);
+            if (!cur.runs.length) t = t.replace(/^ +/, '');
+            if (t) cur.runs.push({ text: t, fmt: fmtOf(c.parentElement, win, d.body) });
+          } else if (c.nodeType === 1) {
+            const tag = c.tagName.toUpperCase();
+            if (/^(STYLE|SCRIPT|HEAD|TITLE|META|XML|O:P)$/.test(tag) && tag !== 'O:P') continue;
+            if (win.getComputedStyle(c).display === 'none') continue;
+            if (tag === 'BR') { open(block); continue; }
+            if (tag === 'TD' || tag === 'TH') { if (cur && cur.runs.length) cur.runs.push({ text: '\t', fmt: null }); else if (!cur) open(c); walk(c, c); continue; }
+            if (BLOCK.test(tag)) {
+              cur = null;
+              if (tag === 'LI') { open(c); cur.runs.push({ text: '• ', fmt: null }); }
+              walk(c, c);
+              cur = null;
+              continue;
+            }
+            walk(c, block);
+          }
+        }
+      };
+      walk(d.body, d.body);
+      for (const p of paras) { const last = p.runs[p.runs.length - 1]; if (last && last.text) last.text = last.text.replace(/ +$/, ''); p.runs = p.runs.filter((r) => r.text); }
+      while (paras.length && !paras[paras.length - 1].runs.length) paras.pop();
+      while (paras.length && !paras[0].runs.length) paras.shift();
+      return paras;
+    });
+  };
+  OF.fmtCss = function (f) {
+    if (!f) return {};
+    const css = { fontWeight: f.b ? '700' : '400', fontStyle: f.i ? 'italic' : 'normal', textDecoration: f.u ? 'underline' : 'none' };
+    if (f.color) css.color = f.color;
+    if (f.sz) css.fontSize = f.sz + 'pt';
+    if (f.font) css.fontFamily = `"${f.font}", Calibri, Carlito, Arial, sans-serif`;
+    return css;
+  };
+  // Separa el <span> donde está el cursor para poder insertar fragmentos entre medio
+  function caretSlot(range) {
+    let node = range.startContainer, off = range.startOffset;
+    if (node.nodeType === 3) {
+      const span = node.parentElement.closest('span[data-r], span[data-fmt]');
+      if (span && span.closest('[data-p]')) {
+        const after = node.splitText(off);
+        const right = span.cloneNode(false);
+        let move = false;
+        for (const ch of Array.from(span.childNodes)) { if (ch === after) move = true; if (move) right.append(ch); }
+        span.after(right);
+        const r = document.createRange();
+        if (!right.textContent) { right.remove(); r.setStartAfter(span); }
+        else if (!span.textContent) { span.remove(); r.setStartBefore(right); }
+        else r.setStartAfter(span);
+        r.collapse(true);
+        return r;
+      }
+    }
+    return range;
+  }
+  OF.insertParas = function (paras) {
+    const sel = getSelection();
+    let range = OF.currentRange();
+    if (!range) return false;
+    if (!range.collapsed) { range.deleteContents(); }
+    paras.forEach((p, i) => {
+      if (i > 0) { document.execCommand('insertParagraph'); range = sel.getRangeAt(0); }
+      range = caretSlot(range);
+      const frag = document.createDocumentFragment();
+      let last = null;
+      for (const run of p.runs) {
+        const s = document.createElement('span');
+        if (run.fmt) { s.dataset.fmt = JSON.stringify(run.fmt); Object.assign(s.style, OF.fmtCss(run.fmt)); }
+        s.textContent = run.text;
+        frag.append(s);
+        last = s;
+      }
+      if (last) range.insertNode(frag);
+      const host = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement).closest('[data-p]');
+      if (host && p.align) {
+        const jc = { left: 'left', center: 'center', right: 'right', justify: 'both' }[p.align];
+        host.dataset.pfmt = JSON.stringify({ ...(host.dataset.pfmt ? JSON.parse(host.dataset.pfmt) : {}), jc });
+        host.style.textAlign = p.align;
+      }
+      const nr = document.createRange();
+      if (last) nr.setStartAfter(last); else nr.setStart(range.startContainer, range.startOffset);
+      nr.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(nr);
+    });
+    OF.lastRange = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+    return true;
+  };
+
+  // Áreas de texto editables (Word y PowerPoint): pegado con formato y atajos
+  OF.plainPaste = function (root, doc) {
     root.addEventListener('paste', (e) => {
       e.preventDefault();
-      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text.replace(/\r\n?/g, '\n').replace(/\n/g, ' '));
+      const cd = e.clipboardData || window.clipboardData;
+      const html = cd.getData('text/html');
+      const text = cd.getData('text/plain');
+      let paras = null;
+      try { if (html) paras = OF.htmlToParas(html); } catch (err) { console.warn('Pegado con formato falló, se usa texto', err); }
+      if (!paras || !paras.length) paras = text.replace(/\r\n?/g, '\n').split('\n').map((t) => ({ runs: t ? [{ text: t, fmt: null }] : [], align: null }));
+      while (paras.length > 1 && !paras[paras.length - 1].runs.length) paras.pop();
+      OF.insertParas(paras);
+      root.dispatchEvent(new Event('input', { bubbles: true }));
     });
     root.addEventListener('drop', (e) => e.preventDefault());
     root.addEventListener('keydown', (e) => {
-      // bloquear atajos de formato del navegador (crearían etiquetas que no existen en el archivo)
-      if ((e.ctrlKey || e.metaKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase())) e.preventDefault();
+      // atajos de formato: se aplican al archivo (no como etiquetas del navegador)
+      if ((e.ctrlKey || e.metaKey) && ['b', 'i', 'u', 'n', 'k', 's'].includes(e.key.toLowerCase()) && !(e.key.toLowerCase() === 's')) {
+        e.preventDefault();
+        const k = { b: 'b', n: 'b', i: 'i', k: 'i', u: 'u' }[e.key.toLowerCase()];
+        if (doc && doc.toggle && k) doc.toggle(k);
+      }
     });
   };
 })();

@@ -347,6 +347,14 @@
         else { this.stopEdit(true); this.select(r, c, extend); }
       });
       this.gridBox.addEventListener('dblclick', (e) => { if (e.target.closest('td[data-c]')) this.startEdit(); });
+      this.gridBox.addEventListener('paste', (e) => {
+        if (this.editor || e.target === this.fx) return;
+        e.preventDefault();
+        const cd = e.clipboardData;
+        this.pasteCells(cd.getData('text/html'), cd.getData('text/plain'));
+      });
+      this.gridBox.addEventListener('copy', (e) => { if (this.editor) return; e.preventDefault(); this.copyCells(e.clipboardData); });
+      this.gridBox.addEventListener('cut', (e) => { if (this.editor) return; e.preventDefault(); this.copyCells(e.clipboardData); this.isRange() ? this.clearRange() : this.commit(''); });
     }
 
     buildStyleSheet() {
@@ -1157,6 +1165,124 @@
       this.showSheet(this.cur);
       this.select(pos.r, pos.c);
       OF.toast(n > 0 ? `${axis === 'row' ? (n > 1 ? n + ' filas insertadas' : 'Fila insertada') : (n > 1 ? n + ' columnas insertadas' : 'Columna insertada')}` : `${axis === 'row' ? (k > 1 ? k + ' filas eliminadas' : 'Fila eliminada') : (k > 1 ? k + ' columnas eliminadas' : 'Columna eliminada')}`);
+    },
+
+    /* ------------------------------ copiar y pegar ------------------------------ */
+    copyCells(cd) {
+      const sh = this.sheets[this.cur], g = this.workRect();
+      const rows = [], html = [];
+      for (let r = g.r1; r <= g.r2; r++) {
+        const vals = [], tds = [];
+        for (let c = g.c1; c <= g.c2; c++) {
+          const x = this.value(this.cur, r, c);
+          const xf = this.xfs[x.s] || this.xfs[0], f = this.fonts[xf.fontId] || {}, fl = this.fills[xf.fillId] || {};
+          const shown = this.display(x);
+          vals.push(shown);
+          let st = '';
+          if (f.b) st += 'font-weight:700;'; if (f.i) st += 'font-style:italic;'; if (f.u) st += 'text-decoration:underline;';
+          if (f.color) st += `color:${f.color};`; if (f.sz) st += `font-size:${f.sz}pt;`; if (f.name) st += `font-family:'${f.name}';`;
+          if (fl.bg) st += `background:${fl.bg};`; if (xf.h && xf.h !== 'general') st += `text-align:${xf.h};`;
+          const num = typeof x.v === 'number' ? ` x:num="${x.v}"` : '';
+          const fmla = x.f != null ? ` x:fmla="=${x.f.replace(/"/g, '&quot;')}"` : '';
+          tds.push(`<td style="${st}" data-fmt="${this.fmtCode(x.s).replace(/"/g, '&quot;')}"${num}${fmla}>${shown.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td>`);
+        }
+        rows.push(vals.join('\t'));
+        html.push('<tr>' + tds.join('') + '</tr>');
+      }
+      cd.setData('text/plain', rows.join('\r\n'));
+      cd.setData('text/html', `<table data-folio-src="${g.r1},${g.c1}">${html.join('')}</table>`);
+      OF.toast(`Copiado ${g.r2 - g.r1 + 1}×${g.c2 - g.c1 + 1}`);
+    },
+    // Formato de número deducido del texto mostrado (cuando el origen no lo indica)
+    guessFormat(text, code) {
+      if (code && code !== 'General') return code;
+      const t = (text || '').trim();
+      if (/^-?\$/.test(t)) return /,\d{1,2}$|\.\d{1,2}$/.test(t) && !/^\$?-?\d{1,3}(\.\d{3})+$/.test(t.replace('$', '')) ? '"$"#,##0.00' : '"$"#,##0';
+      if (/%$/.test(t)) return /[.,]\d+%$/.test(t) ? '0.00%' : '0%';
+      if (/^\d{1,2}[-/]\d{1,2}[-/]\d{2,4}$/.test(t)) return 'dd-mm-yyyy';
+      return null;
+    },
+    pasteCells(html, text) {
+      this.stopEdit(true);
+      const sh = this.sheets[this.cur];
+      const start = { r: this.rangeRect().r1, c: this.rangeRect().c1 };
+      let grid = null;
+      if (html && /<table/i.test(html)) {
+        try {
+          grid = OF.withHtml(html, (d, win) => {
+            const table = d.querySelector('table');
+            if (!table) return null;
+            const out = [];
+            const src = table.getAttribute('data-folio-src');
+            if (src) { const [sr, sc] = src.split(',').map(Number); out.src = { r: sr, c: sc }; }
+            for (const tr of table.querySelectorAll('tr')) {
+              const row = [];
+              for (const td of tr.querySelectorAll('td,th')) {
+                const cs = win.getComputedStyle(td);
+                const inner = td.querySelector('*') || td;
+                const ics = win.getComputedStyle(inner.closest('font,span,b,i,u,strong,em') || td);
+                const st = {
+                  b: +ics.fontWeight >= 600 || +cs.fontWeight >= 600, i: ics.fontStyle === 'italic' || cs.fontStyle === 'italic',
+                  u: /underline/.test(ics.textDecorationLine) || /underline/.test(cs.textDecorationLine),
+                  color: OF.toHex(ics.color), bg: OF.toHex(cs.backgroundColor), h: /center/.test(cs.textAlign) ? 'center' : /right|end/.test(cs.textAlign) ? 'right' : null,
+                  sz: parseFloat(ics.fontSize) ? Math.round(parseFloat(ics.fontSize) * 0.75 * 2) / 2 : null,
+                };
+                if (st.color === '#010203') st.color = null;
+                if (st.sz && Math.abs(st.sz - 10) < 0.01 && Math.abs(parseFloat(ics.fontSize) - 13.37) < 0.01) st.sz = null;
+                // Excel guarda el formato de número en la regla mso-number-format de la clase o del estilo
+                let code = td.getAttribute('data-fmt');
+                if (!code) {
+                  const styleText = (td.getAttribute('style') || '') + ';' + Array.from(d.querySelectorAll('style')).map((x) => x.textContent).join('\n').split('.' + (td.className || '__')).slice(1).map((x) => x.split('}')[0]).join(';');
+                  const m = /mso-number-format:\s*("([^"]*)"|'([^']*)'|([^;]+))/.exec(styleText);
+                  if (m) code = (m[2] || m[3] || m[4] || '').replace(/\\([0-9a-fA-F]{4})/g, (x, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(.)/g, '$1').trim();
+                  if (code === 'General' || code === '@' && false) code = code;
+                }
+                row.push({ text: td.innerText.replace(/ /g, ' ').replace(/\n$/, ''), num: td.getAttribute('x:num'), fmla: td.getAttribute('x:fmla'), code, st, span: +(td.getAttribute('colspan') || 1) });
+                for (let k = 1; k < +(td.getAttribute('colspan') || 1); k++) row.push(null);
+              }
+              out.push(row);
+            }
+            return out;
+          });
+        } catch (e) { console.warn(e); grid = null; }
+      }
+      if (!grid) grid = (text || '').replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n').map((line) => line.split('\t').map((t) => ({ text: t })));
+      if (!grid.length) return;
+      const keepSel = { ...this.sel };
+      let n = 0;
+      grid.forEach((row, dr) => row.forEach((cell, dc) => {
+        if (!cell) return;
+        const r = start.r + dr, c = start.c + dc;
+        if (sh.covered.get(r + ',' + c) === 'x') return;
+        this.sel = { r, c };
+        let input = cell.num != null && cell.num !== '' ? String(cell.num) : cell.text;
+        if (cell.fmla && grid.src) input = '=' + shiftFormula(cell.fmla.replace(/^=/, ''), start.r - grid.src.r, start.c - grid.src.c);
+        // una celda numérica copiada como texto con formato se escribe como número
+        this.commit(input, true);
+        const ch = {};
+        const code = this.guessFormat(cell.text, cell.code && cell.code !== 'General' ? cell.code : null);
+        if (code && (cell.num != null || /^[-$\d.,% /]+$/.test(cell.text.trim()))) ch.numFmt = code;
+        if (cell.st) {
+          ch.font = { b: !!cell.st.b, i: !!cell.st.i, u: !!cell.st.u };
+          if (cell.st.color) ch.font.color = cell.st.color;
+          if (cell.st.sz) ch.font.sz = cell.st.sz;
+          if (cell.st.bg && cell.st.bg !== '#FFFFFF') ch.fill = cell.st.bg;
+          if (cell.st.h) ch.h = cell.st.h;
+        }
+        if (Object.keys(ch).length && this.stylesDoc) {
+          const el = this.cellEl(sh, r, c, true);
+          el.setAttribute('s', this.newXf(+(el.getAttribute('s') || 0), ch));
+        }
+        n++;
+      }));
+      this.buildStyleSheet();
+      this.undo = [];
+      this.markDirty();
+      this.sel = keepSel;
+      this.showSheetKeep();
+      this.anchor = { r: start.r, c: start.c };
+      this.select(start.r + grid.length - 1, start.c + Math.max(...grid.map((r) => r.length)) - 1, true);
+      OF.toast(`${n} celda${n === 1 ? '' : 's'} pegada${n === 1 ? '' : 's'}`);
     },
 
     /* -------------------------------- imágenes -------------------------------- */
