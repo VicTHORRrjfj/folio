@@ -1,10 +1,11 @@
 /* Modo sin conexión: guarda la app completa en el dispositivo. */
-const VERSION = 'folio-v3';
+const VERSION = 'folio-v8';
 const FILES = [
   './', 'index.html', 'app.css', 'manifest.webmanifest',
-  'js/core.js', 'js/word.js', 'js/excel.js', 'js/ppt.js', 'js/app.js',
-  'vendor/jszip.min.js', 'vendor/docx-preview.min.js', 'vendor/ssf.js', 'vendor/hyperformula.full.min.js',
+  'js/core.js', 'js/common-plus.js', 'js/chart.js', 'js/word.js', 'js/word-plus.js', 'js/word-plus2.js', 'js/excel.js', 'js/excel-plus.js', 'js/excel-cf.js', 'js/ppt.js', 'js/ppt-plus.js', 'js/ppt-anim.js', 'js/app.js', 'js/convert-worker.js',
+  'vendor/jszip.min.js', 'vendor/docx-preview.min.js', 'vendor/ssf.js', 'vendor/hyperformula.full.min.js', 'vendor/xlsx.full.min.js',
   'assets/nuevo.docx', 'assets/nuevo.xlsx', 'assets/nuevo.pptx',
+  'assets/plantillas/factura.xlsx', 'assets/plantillas/cotizacion.docx', 'assets/plantillas/presupuesto.xlsx', 'assets/plantillas/inventario.xlsx', 'assets/plantillas/informe.docx', 'assets/plantillas/presentacion.pptx',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
 ];
 self.addEventListener('install', (e) => {

@@ -452,6 +452,7 @@
       const x = this.value(si, r, c);
       const xf = this.xfs[x.s] || this.xfs[0];
       td.className = 'x' + x.s;
+      td.style.zIndex = '';
       const txt = this.display(x);
       td.textContent = '';
       if (txt !== '') {
@@ -462,7 +463,7 @@
         // el texto se desborda hacia celdas vacías a la derecha, como en Excel
         if (!isNum && !xf.wrap && (!xf.h || xf.h === 'general' || xf.h === 'left')) {
           const nx = this.raw(sh, r, c + 1);
-          if (nx.v == null && nx.f == null && !sh.covered.get(r + ',' + (c + 1))) span.classList.add('ov');
+          if (nx.v == null && nx.f == null && !sh.covered.get(r + ',' + (c + 1))) { span.classList.add('ov'); td.classList.add('ovf'); }
         }
         if (isNum && /#+/.test(txt) === false && txt.length > 0) span.classList.add('num');
         td.append(span);
@@ -573,7 +574,7 @@
       const k = e.key;
       const mv = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], Enter: [1, 0], Tab: [0, e.shiftKey ? -1 : 1] }[k];
       if (mv) { e.preventDefault(); this.move(mv[0], mv[1], e.shiftKey && k.startsWith('Arrow')); return; }
-      if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); this.doUndo(); return; }
+      if ((e.ctrlKey || e.metaKey) && ['z', 'y'].includes(k.toLowerCase())) return;
       if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); if (this.isRange()) this.clearRange(); else this.commit(''); return; }
       if (k === 'F2') { e.preventDefault(); this.startEdit(); return; }
       if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); this.startEdit(k); }
@@ -675,7 +676,7 @@
       if (input === prev) { this.select(r, c); return; }
       const p = this.parseInput(input);
       const el = this.cellEl(sh, r, c, p.type !== 'empty');
-      if (!isUndo) this.undo.push({ sheet: this.cur, r, c, prev });
+      if (!isUndo) OF.checkpoint && OF.checkpoint();
       if (el) {
         const oldF = OF.kid(el, 'f', S);
         if (oldF && oldF.getAttribute('t') === 'shared' && oldF.getAttribute('ref')) this.expandShared(sh, oldF.getAttribute('si'));
@@ -914,6 +915,7 @@
       this.select(this.sel.r, this.sel.c, true);
     },
     clearRange() {
+      OF.checkpoint && OF.checkpoint();
       const sh = this.sheets[this.cur], g = this.workRect();
       for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) {
         const el = sh.cells.get(r + ',' + c);
@@ -924,7 +926,6 @@
         el.removeAttribute('t');
         if (this.hf) try { this.hf.setCellContents({ sheet: sh.hfId, row: r, col: c }, [[null]]); } catch (e) {}
       }
-      this.undo = [];
       this.markDirty();
       this.showSheetKeep();
     },
@@ -969,6 +970,7 @@
         for (const k of ['b', 'i', 'u']) if (k in ch.font) { OF.removeKids(nf, [k], S); if (ch.font[k]) OF.ordered(nf, S, '', k, FONT_ORDER); }
         if ('color' in ch.font) { OF.removeKids(nf, ['color'], S); if (ch.font.color) OF.ordered(nf, S, '', 'color', FONT_ORDER).setAttribute('rgb', 'FF' + ch.font.color.replace('#', '').toUpperCase()); }
         if ('sz' in ch.font) OF.ordered(nf, S, '', 'sz', FONT_ORDER).setAttribute('val', ch.font.sz);
+        if (ch.font.name) { OF.ordered(nf, S, '', 'name', FONT_ORDER).setAttribute('val', ch.font.name); OF.removeKids(nf, ['scheme', 'family', 'charset'], S); }
         fontsEl.appendChild(nf);
         fontsEl.setAttribute('count', fl.length + 1);
         this.fonts.push(this.parseFont(nf));
@@ -986,6 +988,24 @@
           nx.setAttribute('fillId', fl.length);
         }
         nx.setAttribute('applyFill', '1');
+      }
+      if (ch.sides) {
+        const bordersEl = OF.kid(root, 'borders', S), bl = OF.kids(bordersEl, 'border', S);
+        const nb = (bl[xf.borderId] || bl[0]).cloneNode(true);
+        const ORDER = ['start', 'left', 'end', 'right', 'top', 'bottom', 'diagonal', 'vertical', 'horizontal'];
+        for (const side of ['left', 'right', 'top', 'bottom']) {
+          if (!(side in ch.sides)) continue;
+          OF.removeKids(nb, [side, side === 'left' ? 'start' : side === 'right' ? 'end' : '__'], S);
+          const e = OF.ordered(nb, S, '', side, ORDER);
+          const v = ch.sides[side];
+          if (v) { e.setAttribute('style', v); const col = doc.createElementNS(S, 'color'); col.setAttribute('auto', '1'); e.appendChild(col); }
+        }
+        bordersEl.appendChild(nb);
+        bordersEl.setAttribute('count', bl.length + 1);
+        const side = (n) => { const e = OF.kid(nb, n, S); const st = e && e.getAttribute('style'); return st ? { style: st, color: this.color(OF.kid(e, 'color', S)) || '#000' } : null; };
+        this.borders.push({ left: side('left'), right: side('right'), top: side('top'), bottom: side('bottom') });
+        nx.setAttribute('borderId', bl.length);
+        nx.setAttribute('applyBorder', '1');
       }
       if ('h' in ch || 'wrap' in ch) {
         let al = OF.kid(nx, 'alignment', S);
@@ -1005,6 +1025,7 @@
     applyStyle(ch) {
       if (!this.stylesDoc) { OF.toast('Este archivo no tiene hoja de estilos; no se puede dar formato.'); return; }
       this.stopEdit(true);
+      OF.checkpoint && OF.checkpoint();
       const sh = this.sheets[this.cur], g = this.workRect();
       for (let r = g.r1; r <= g.r2; r++) for (let c = g.c1; c <= g.c2; c++) {
         if (sh.covered.get(r + ',' + c) === 'x') continue;
@@ -1047,6 +1068,7 @@
     },
     async shiftSheet(axis, at, n) {
       this.stopEdit(true);
+      OF.checkpoint && OF.checkpoint();
       const T = this.sheets[this.cur];
       const k = -n;
       const one = (i) => (n > 0 ? (i >= at ? i + n : i) : i < at ? i : i >= at + k ? i - k : null);
@@ -1056,11 +1078,34 @@
         return b2 < a2 ? null : [a2, b2];
       };
       const tables = await this.sheetParts(T, /\/table$/);
+      // tablas con formato: columnas nuevas o eliminadas dentro de la tabla
+      const newHeads = [];
       if (axis === 'col') {
         for (const t of tables) {
-          const [a, b] = t.doc.documentElement.getAttribute('ref').split(':').map(parseRef);
-          const hits = n > 0 ? at > a.c && at <= b.c : !(at + k - 1 < a.c || at > b.c);
-          if (hits) { OF.toast('No se pueden insertar ni eliminar columnas dentro de una tabla con formato de Excel.', 5000); return; }
+          const tr = t.doc.documentElement;
+          const [a, b] = tr.getAttribute('ref').split(':').map(parseRef);
+          const tcs = OF.kid(tr, 'tableColumns', S);
+          const list = OF.kids(tcs, 'tableColumn', S);
+          if (n > 0 && at > a.c && at <= b.c) {
+            const names = new Set(list.map((e) => (e.getAttribute('name') || '').toLowerCase()));
+            let maxId = Math.max(0, ...list.map((e) => +e.getAttribute('id') || 0)), num = 0;
+            const before = list[at - a.c];
+            for (let i = 0; i < n; i++) {
+              let name; do { name = 'Columna' + ++num; } while (names.has(name.toLowerCase()));
+              names.add(name.toLowerCase());
+              const e = t.doc.createElementNS(S, tr.prefix ? tr.prefix + ':tableColumn' : 'tableColumn');
+              e.setAttribute('id', ++maxId); e.setAttribute('name', name);
+              tcs.insertBefore(e, before);
+              newHeads.push({ r: a.r, c: at + i, name, s: (T.cells.get(a.r + ',' + (at - 1)) || { getAttribute: () => null }).getAttribute('s') });
+            }
+            tcs.setAttribute('count', OF.kids(tcs, 'tableColumn', S).length);
+          } else if (n < 0 && !(at + k - 1 < a.c || at > b.c)) {
+            const lo = Math.max(at, a.c) - a.c, hi = Math.min(at + k - 1, b.c) - a.c;
+            if (hi - lo + 1 >= list.length) { OF.toast('Para quitar todas las columnas de una tabla con formato, elimina la tabla en Excel.', 5000); return; }
+            for (let i = lo; i <= hi; i++) tcs.removeChild(list[i]);
+            tcs.setAttribute('count', OF.kids(tcs, 'tableColumn', S).length);
+            for (const fc of OF.all(tr, 'filterColumn')) fc.parentNode.removeChild(fc);
+          }
         }
       }
       const fx = (text, same) => shiftRefs(text, same, T.name, axis, one, rng);
@@ -1096,6 +1141,19 @@
             else c.setAttribute('r', addr(r, nc));
           }
         }
+      }
+      // encabezados de las columnas nuevas de una tabla (deben coincidir con su nombre)
+      for (const h of newHeads) {
+        const row = OF.kids(T.data, 'row', S).find((rw) => +rw.getAttribute('r') === h.r + 1);
+        if (!row) continue;
+        const c = T.doc.createElementNS(S, T.data.prefix ? T.data.prefix + ':c' : 'c');
+        c.setAttribute('r', addr(h.r, h.c)); c.setAttribute('t', 'inlineStr');
+        if (h.s) c.setAttribute('s', h.s);
+        const is = T.doc.createElementNS(S, T.data.prefix ? T.data.prefix + ':is' : 'is'), tt = T.doc.createElementNS(S, T.data.prefix ? T.data.prefix + ':t' : 't');
+        tt.textContent = h.name; is.appendChild(tt); c.appendChild(is);
+        let next = null; for (const ce of OF.kids(row, 'c', S)) if (parseRef(ce.getAttribute('r')).c > h.c) { next = ce; break; }
+        for (const ce of OF.kids(row, 'c', S)) if (parseRef(ce.getAttribute('r')).c === h.c) row.removeChild(ce);
+        row.insertBefore(c, next);
       }
       const root = T.doc.documentElement;
       if (axis === 'col') {
@@ -1138,7 +1196,7 @@
         }
         this.zip.file(d.path, OF.serializeXml(d.doc));
       }
-      // tablas con formato (solo filas)
+      // tablas con formato
       for (const t of tables) {
         const tr = t.doc.documentElement;
         fixAttr(tr, 'ref');
@@ -1204,6 +1262,7 @@
     },
     pasteCells(html, text) {
       this.stopEdit(true);
+      OF.checkpoint && OF.checkpoint();
       const sh = this.sheets[this.cur];
       const start = { r: this.rangeRect().r1, c: this.rangeRect().c1 };
       let grid = null;
@@ -1344,6 +1403,7 @@
       layer.style.zoom = this.userZoom || 1;
     },
     async picAction(p, a) {
+      OF.checkpoint && OF.checkpoint();
       OF.closeImageBar();
       const anc = p.anc;
       if (a === 'del') anc.parentNode.removeChild(anc);
@@ -1369,6 +1429,7 @@
     },
     async insertImage(file) {
       this.stopEdit(true);
+      OF.checkpoint && OF.checkpoint();
       const im = await OF.prepareImage(file);
       const sh = this.sheets[this.cur];
       const root = sh.doc.documentElement;

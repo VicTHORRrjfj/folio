@@ -38,6 +38,15 @@
         ],
         "application/vnd.openxmlformats-officedocument.presentationml.presentation": [
           ".pptx"
+        ],
+        "application/vnd.ms-excel": [
+          ".xls"
+        ],
+        "application/vnd.oasis.opendocument.spreadsheet": [
+          ".ods"
+        ],
+        "text/csv": [
+          ".csv"
         ]
       }
     }
@@ -59,7 +68,13 @@
             ".docx",
             ".xlsx",
             ".pptx",
-            "application/octet-stream"
+            "application/octet-stream",
+            "application/vnd.ms-excel",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            "text/csv",
+            ".xls",
+            ".ods",
+            ".csv"
           ]
         }
       ]

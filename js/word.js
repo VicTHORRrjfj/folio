@@ -178,7 +178,7 @@
         if (!im) { if (!e.target.closest('.imgbar')) OF.closeImageBar(); return; }
         im.classList.add('sel');
         const i = +im.dataset.di;
-        OF.imageBar(im, [['Más pequeña', () => this.imageAction(i, 0.8)], ['Más grande', () => this.imageAction(i, 1.25)], ['Eliminar', () => this.imageAction(i, 'del'), true]]);
+        OF.imageBar(im, [['Más pequeña', () => this.imageAction(i, 0.8)], ['Más grande', () => this.imageAction(i, 1.25)], ...(this.imageWrapMenu ? [['Ajuste ▾', (btn) => this.imageWrapMenu(i, btn)]] : []), ['Eliminar', () => this.imageAction(i, 'del'), true]]);
       });
       // encabezados/pies: solo lectura en esta versión
       this.pages.querySelectorAll('section.docx > header, section.docx > footer').forEach((h) => h.setAttribute('title', 'Encabezado/pie: solo lectura'));
@@ -376,4 +376,6 @@
 
   WordDoc.mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   OF.WordDoc = WordDoc;
+  WordDoc.runFmt = applyRunFmt;
+  WordDoc.paraFmt = applyParaFmt;
 })();

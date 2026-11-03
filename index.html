@@ -52,7 +52,13 @@
         </button>
       </div>
 
-      <h2 class="sec">Recientes</h2>
+      <h2 class="sec">Plantillas</h2>
+      <div class="tpl-row" id="templates"></div>
+
+      <div class="sec-row">
+        <h2 class="sec">Recientes</h2>
+        <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="recentSearch" type="search" placeholder="Buscar en recientes" aria-label="Buscar en recientes"></label>
+      </div>
       <ul class="recent" id="recent"></ul>
       <p class="empty-note hidden" id="recentEmpty">Los archivos que abras quedarán aquí para volver a ellos sin conexión.</p>
 
@@ -68,6 +74,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
       <div class="fname"><strong id="fname">Documento</strong><span id="fstate">Sin cambios</span></div>
+      <div class="tb-group">
+        <button class="icon-btn" id="undoBtn" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+        <button class="icon-btn" id="redoBtn" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+        <button class="icon-btn" id="findBtn" title="Buscar y reemplazar (Ctrl+F)" aria-label="Buscar y reemplazar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+      </div>
       <div class="tb-group tb-zoom">
         <button class="icon-btn" id="zoomOut" title="Alejar" aria-label="Alejar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M21 21l-4.3-4.3"/></svg></button>
         <button class="icon-btn" id="zoomIn" title="Acercar" aria-label="Acercar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M11 8v6M21 21l-4.3-4.3"/></svg></button>
@@ -81,26 +92,49 @@
       <button class="icon-btn" id="moreBtn" title="Más opciones" aria-label="Más opciones" aria-haspopup="true"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>
       <div class="menu hidden" id="menu" role="menu">
         <button id="saveCopy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>Guardar una copia</button>
+        <button id="printBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v7H6z"/></svg>Imprimir o guardar PDF</button>
         <button id="shareBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Compartir</button>
         <hr>
         <button id="localeBtn" class="hidden"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h7"/></svg><span id="localeLbl">Números: 1.234,56</span></button>
         <div class="hint" id="menuHint"></div>
       </div>
     </div>
-    <div class="ribbon" id="ribbon" role="toolbar" aria-label="Formato e inserción"></div>
+    <div class="rtabs" id="rtabs" role="tablist"></div>
+    <div class="ribbon" id="ribbon" role="toolbar" aria-label="Herramientas"></div>
+    <div class="findbar hidden" id="findbar" role="search">
+      <input id="findQ" type="search" placeholder="Buscar" aria-label="Buscar">
+      <span class="fcount" id="findCount"></span>
+      <button class="icon-btn" id="findPrev" title="Anterior (Mayús+Enter)" aria-label="Anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button class="icon-btn" id="findNext" title="Siguiente (Enter)" aria-label="Siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
+      <span class="frep">
+        <input id="findR" type="text" placeholder="Reemplazar con" aria-label="Reemplazar con">
+        <button class="btn" id="repOne">Reemplazar</button>
+        <button class="btn" id="repAll">Todo</button>
+      </span>
+      <button class="icon-btn" id="findClose" title="Cerrar" aria-label="Cerrar búsqueda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
     <div id="view"></div>
+    <div class="statusbar" id="statusbar"><span id="status"></span><span id="statusZoom"></span></div>
   </section>
 
-  <input type="file" id="fileInput" accept=".docx,.xlsx,.pptx,.xlsm,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
+  <input type="file" id="fileInput" accept=".docx,.xlsx,.pptx,.xlsm,.xls,.ods,.csv,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
 
   <script src="vendor/jszip.min.js"></script>
   <script src="vendor/docx-preview.min.js"></script>
   <script src="vendor/ssf.js"></script>
   <script src="vendor/hyperformula.full.min.js" defer></script>
   <script src="js/core.js"></script>
+  <script src="js/common-plus.js"></script>
+  <script src="js/chart.js"></script>
   <script src="js/word.js"></script>
+  <script src="js/word-plus.js"></script>
+  <script src="js/word-plus2.js"></script>
   <script src="js/excel.js"></script>
+  <script src="js/excel-plus.js"></script>
+  <script src="js/excel-cf.js"></script>
   <script src="js/ppt.js"></script>
+  <script src="js/ppt-plus.js"></script>
+  <script src="js/ppt-anim.js"></script>
   <script src="js/app.js" defer></script>
 </body>
 </html>

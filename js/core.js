@@ -403,6 +403,7 @@
   // y les marca el formato pedido. El XML se actualiza al guardar.
   OF.formatSelection = function (range, fmt, css) {
     if (!range || range.collapsed) return false;
+    OF.checkpoint && OF.checkpoint();
     const nodes = OF.textNodesIn(range);
     if (!nodes.length) return false;
     const done = [];
@@ -565,7 +566,7 @@
     for (const [label, fn, danger] of actions) {
       const b = OF.el('button', { class: danger ? 'danger' : '', type: 'button' }, label);
       b.addEventListener('mousedown', (e) => e.preventDefault());
-      b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+      b.addEventListener('click', (e) => { e.stopPropagation(); fn(b); });
       bar.append(b);
     }
     document.body.append(bar);
@@ -736,6 +737,7 @@
   OF.plainPaste = function (root, doc) {
     root.addEventListener('paste', (e) => {
       e.preventDefault();
+      OF.checkpoint && OF.checkpoint();
       const cd = e.clipboardData || window.clipboardData;
       const html = cd.getData('text/html');
       const text = cd.getData('text/plain');
@@ -749,9 +751,9 @@
     root.addEventListener('drop', (e) => e.preventDefault());
     root.addEventListener('keydown', (e) => {
       // atajos de formato: se aplican al archivo (no como etiquetas del navegador)
-      if ((e.ctrlKey || e.metaKey) && ['b', 'i', 'u', 'n', 'k', 's'].includes(e.key.toLowerCase()) && !(e.key.toLowerCase() === 's')) {
+      if ((e.ctrlKey || e.metaKey) && ['b', 'i', 'u', 'n', 'k'].includes(e.key.toLowerCase())) {
         e.preventDefault();
-        const k = { b: 'b', n: 'b', i: 'i', k: 'i', u: 'u' }[e.key.toLowerCase()];
+        const k = { n: 'b', i: 'i', k: 'i', u: 'u' }[e.key.toLowerCase()];
         if (doc && doc.toggle && k) doc.toggle(k);
       }
     });

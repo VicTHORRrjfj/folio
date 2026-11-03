@@ -244,6 +244,7 @@
       this.syncs = [];
       this.pending = [];
       this.picReg = [];
+      this.smartParts = [];
       OF.closeImageBar();
       for (let i = 0; i < this.slides.length; i++) {
         const slide = this.slides[i];
@@ -326,6 +327,7 @@
       const rot = xfrm.getAttribute('rot') ? +xfrm.getAttribute('rot') / 60000 : 0;
       const flipH = xfrm.getAttribute('flipH') === '1', flipV = xfrm.getAttribute('flipV') === '1';
       const d = OF.el('div', { class: 'pp-sh', style: { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' } });
+      if (ctx.level === 'slide' && !T.inGroup) { const nv = OF.all(el, 'cNvPr')[0]; if (nv) d.dataset.spid = nv.getAttribute('id'); }
       const tf = [];
       if (rot) tf.push(`rotate(${rot}deg)`);
       if (flipH) tf.push('scaleX(-1)');
@@ -338,8 +340,18 @@
         const sy = chExt && +chExt.getAttribute('cy') ? +ext.getAttribute('cy') / +chExt.getAttribute('cy') : 1;
         const ox = +off.getAttribute('x'), oy = +off.getAttribute('y');
         const cx = chOff ? +chOff.getAttribute('x') : 0, cy = chOff ? +chOff.getAttribute('y') : 0;
-        const T2 = { x: (v) => T.x(ox + (v - cx) * sx), y: (v) => T.y(oy + (v - cy) * sy), sx: T.sx * sx, sy: T.sy * sy };
+        const T2 = { x: (v) => T.x(ox + (v - cx) * sx), y: (v) => T.y(oy + (v - cy) * sy), sx: T.sx * sx, sy: T.sy * sy, inGroup: true };
         const gctx = { ...ctx, grpFill: this.fill(OF.kid(el, 'grpSpPr', P), ctx) };
+        if (sync && this.regShape && !T.inGroup && T.sx === 1 && T.sy === 1 && T.x(0) === 0 && T.y(0) === 0 && off && ext) {
+          // grupo de primer nivel: un contenedor propio que se puede mover, girar y cambiar de tamaño
+          const T3 = { x: (v) => T.x(ox + (v - cx) * sx) - x, y: (v) => T.y(oy + (v - cy) * sy) - y, sx: T.sx * sx, sy: T.sy * sy, inGroup: true, grp: { cx, cy, sx, sy } };
+          d.classList.add('pp-grpbox');
+          d.dataset.grp = '1';
+          box.append(d);
+          this.renderChildren(el, gctx, d, sync, T3, false);
+          this.regShape(d, el, sync, T, rot, false);
+          return;
+        }
         if (tf.length) {
           // grupo rotado: los hijos se dibujan dentro de un contenedor rotado
           const inner = OF.el('div', { class: 'pp-grp', style: { left: 0, top: 0, width: this.W + 'px', height: this.H + 'px', transformOrigin: `${x + w / 2}px ${y + h / 2}px`, transform: tf.join(' ') } });
@@ -361,7 +373,8 @@
           Object.assign(img.style, { position: 'absolute', width: iw + 'px', height: ih + 'px', left: -l * iw + 'px', top: -t * ih + 'px', maxWidth: 'none' });
           d.style.overflow = 'hidden';
         }
-        if (sync && T.sx === 1 && T.sy === 1 && T.x(0) === 0 && !rot) { d.classList.add('pp-pic'); d.dataset.pe = this.picReg.push({ el, sync }) - 1; }
+        if (this.regShape) this.regShape(d, el, sync, T, rot, false);
+        else if (sync && T.sx === 1 && T.sy === 1 && T.x(0) === 0 && !rot) { d.classList.add('pp-pic'); d.dataset.pe = this.picReg.push({ el, sync }) - 1; }
         if (u === 'unsupported') d.append(OF.el('div', { class: 'pp-unsup' }, 'Imagen EMF/WMF'));
         else if (u) { this.pending.push(Promise.resolve(u).then((url) => (img.src = url))); d.append(img); }
         const ln = this.line(OF.kid(el, 'spPr', P), ctx, styleEl);
@@ -375,10 +388,30 @@
         const gd = OF.all(el, 'graphicData', A)[0];
         const tbl = gd && OF.kid(gd, 'tbl', A);
         if (tbl) this.renderTable(tbl, ctx, d, sync);
-        else {
-          const kind = gd && /chart/.test(gd.getAttribute('uri')) ? 'Gráfico' : gd && /diagram/.test(gd.getAttribute('uri')) ? 'SmartArt' : 'Objeto';
-          d.append(OF.el('div', { class: 'pp-unsup' }, `${kind} (se conserva, no editable aquí)`));
+        else if (gd && /chart/.test(gd.getAttribute('uri')) && OF.parseChart) {
+          const ch = OF.all(gd, 'chart', OF.NS.c)[0];
+          const rel = ch && ctx.rels[ch.getAttributeNS(R, 'id')];
+          if (rel && this.zip.file(rel.target)) {
+            const theme = ctx.theme.colors, pal = ['accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'].map((a) => '#' + (theme[a] || '4472C4'));
+            this.pending.push(this.zip.file(rel.target).async('string').then((xml) => { try { d.append(OF.drawChart(OF.parseChart(OF.parseXml(xml)), w, h, null, pal)); } catch (e) { d.append(OF.el('div', { class: 'pp-unsup' }, 'Gráfico')); } }));
+          } else d.append(OF.el('div', { class: 'pp-unsup' }, 'Gráfico (se conserva)'));
+        } else if (gd && /diagram/.test(gd.getAttribute('uri'))) {
+          const ph0 = OF.el('div', { class: 'pp-unsup' }, 'SmartArt (se conserva)');
+          d.append(ph0);
+          this.pending.push(this.smartArt(gd, ctx).then((sa) => {
+            if (!sa) return;
+            ph0.remove();
+            const inner = OF.el('div', { class: 'pp-smart', style: { position: 'absolute', left: 0, top: 0, width: w + 'px', height: h + 'px' } });
+            d.append(inner);
+            // el texto del SmartArt se edita con su propia sincronización (parte de dibujo + datos)
+            const ssync = sync ? new OF.TextSync({ ...(sync.cfg) }) : null;
+            this.renderChildren(sa.tree, ctx, inner, ssync, { x: (v) => px(v), y: (v) => px(v), sx: 1, sy: 1, inGroup: true }, false);
+            if (ssync) (this.smartParts = this.smartParts || []).push({ ...sa, sync: ssync, box: inner });
+          }).catch((e) => console.warn('SmartArt', e)));
+        } else {
+          d.append(OF.el('div', { class: 'pp-unsup' }, 'Objeto (se conserva, no editable aquí)'));
         }
+        this.regShape && this.regShape(d, el, sync, T, rot, !!tbl);
         box.append(d);
         return;
       }
@@ -399,6 +432,7 @@
         const dash = { dash: '6 4', sysDash: '3 2', dot: '1 2', sysDot: '1 2', lgDash: '10 4', dashDot: '6 3 1 3' }[ln.dash];
         svg.append(svgEl('line', { x1: 0, y1: 0, x2: w, y2: h, stroke: ln.color, 'stroke-width': ln.w, 'stroke-dasharray': dash || '' }));
         d.append(svg);
+        this.regShape && this.regShape(d, el, sync, T, rot, false);
         box.append(d);
         return;
       }
@@ -423,7 +457,28 @@
       // texto
       const txBody = OF.kid(el, 'txBody', P);
       if (txBody) this.renderText(txBody, el, ph, lay, mas, ctx, d, sync, styleEl);
+      this.regShape && this.regShape(d, el, sync, T, rot, !!(txBody && sync));
       box.append(d);
+    }
+
+    // SmartArt: PowerPoint guarda un dibujo ya resuelto (diagramDrawing) que se dibuja como formas normales
+    async smartArt(gd, ctx) {
+      const ids = OF.all(gd, 'relIds')[0];
+      if (!ids) return null;
+      const dmRel = ctx.rels[ids.getAttributeNS(R, 'dm')];
+      let target = null, dataDoc = null;
+      if (dmRel && this.zip.file(dmRel.target)) {
+        const dm = await this.zip.file(dmRel.target).async('string');
+        try { dataDoc = OF.parseXml(dm); } catch (e) { dataDoc = null; }
+        const m = /dataModelExt[^>]*relId="([^"]+)"/.exec(dm);
+        if (m && ctx.rels[m[1]]) target = ctx.rels[m[1]].target;
+      }
+      if (!target) { const all = Object.values(ctx.rels).filter((r) => /diagramDrawing$/.test(r.type)); if (all.length === 1) target = all[0].target; }
+      if (!target || !this.zip.file(target)) return null;
+      const xml = (await this.zip.file(target).async('string')).split('http://schemas.microsoft.com/office/drawing/2008/diagram').join(P);
+      const doc = OF.parseXml(xml);
+      const tree = OF.all(doc, 'spTree')[0];
+      return tree ? { tree, doc, path: target, dataPath: dataDoc ? dmRel.target : null, dataDoc } : null;
     }
 
     custPath(geom, w, h) {
@@ -764,10 +819,11 @@
       if (!this.dirty) return new Blob([this.original], { type: PptDoc.mime });
       this.slides.forEach((slide, i) => {
         const dps = Array.from(slide.box.querySelectorAll('[data-slide-edit] .pp-p, [data-slide-edit] > div'));
-        const uniq = Array.from(new Set(dps)).filter((e) => e.closest('[data-slide-edit]'));
+        const uniq = Array.from(new Set(dps)).filter((e) => e.closest('[data-slide-edit]') && !e.closest('.pp-smart'));
         this.syncs[i].apply(uniq);
         this.zip.file(slide.path, OF.serializeXml(slide.doc));
       });
+      if (this.commitSmart) this.commitSmart();
       const blob = await this.zip.generateAsync({ type: 'blob', mimeType: PptDoc.mime, compression: 'DEFLATE' });
       this.original = await blob.arrayBuffer();
       this.dirty = false;
@@ -868,10 +924,11 @@
     // Vuelca todas las ediciones de texto al XML de cada diapositiva
     commitAll() {
       this.slides.forEach((slide, i) => {
-        const dps = Array.from(slide.box.querySelectorAll('[data-slide-edit] .pp-p'));
+        const dps = Array.from(slide.box.querySelectorAll('[data-slide-edit] .pp-p')).filter((e) => !e.closest('.pp-smart'));
         this.syncs[i].apply(dps);
         this.zip.file(slide.path, OF.serializeXml(slide.doc));
       });
+      if (this.commitSmart) this.commitSmart();
     },
     async structural(fn) {
       const info = this.caretInfo();
